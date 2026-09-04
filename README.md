@@ -59,15 +59,17 @@
 
 客戶端建議流程是「先 clone 到本地，再用 ModusToolbox 匯入」。
 
-### 6.1 先把 GitHub repo clone 到本地端（GUI）
+### 6.1 先把 GitHub repo clone 到本地端（Terminal）
 
-1. 打開瀏覽器進入本專案 GitHub 頁面。
-2. 點選 Code，複製 HTTPS clone URL。
-3. 開啟 GitHub Desktop。
-4. 點選 File -> Clone Repository。
-5. 在 URL 分頁貼上 HTTPS clone URL。
-6. 選擇 Local Path（建議英文路徑且不要有空白）。
-7. 點選 Clone，完成後會得到本地資料夾 psoc_edge_radar_fft。
+1. 開啟終端機（Windows PowerShell、CMD 或 Git Bash 皆可）。
+2. 切換到你要放專案的資料夾。
+3. 執行以下指令：
+
+```bash
+git clone https://github.com/wind-apprentice/psoc_edge_radar_fft.git
+```
+
+4. clone 完成後，會得到本地資料夾 psoc_edge_radar_fft。
 
 ### 6.2 在 ModusToolbox Eclipse IDE 匯入 clone 後的專案（GUI）
 
