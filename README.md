@@ -11,7 +11,7 @@
 - Hamming windowing
 - range FFT
 - magnitude spectrum integration across chirps
-- UART diagnostics output
+- UART spectrum output
 
 此分支刻意對齊 Infineon 原始 sample flow，方便後續由原廠協助除錯與支援。
 
@@ -23,6 +23,11 @@
 - https://github.com/Infineon/mtb-example-psoc-edge-hello-world
 - https://github.com/Infineon/sensor-xensiv-bgt60trxx
 - mtb://sensor-dsp（ModusToolbox dependency）
+
+說明：
+
+- sensor-xensiv-bgt60trxx 已以官方原始碼形式納入本專案的 third_party 目錄
+- sensor-dsp 仍透過 ModusToolbox library dependency 取得
 
 ## 3. 使用硬體 Hardware
 
@@ -40,37 +45,34 @@
 
 輸出 Output：
 
-- UART frame-level diagnostics
-- spectrum 摘要 bins（例如 B2/B6/B10/B14）
-- peak bin 與 SNR-like 指標（bring-up 驗證用途）
+- UART 輸出的 integrated spectrum
+- 每個 frame 一行 spectrum CSV
+- frame index 與有效 bin 範圍資訊
 
 備註 Note：
 
 - get_static_distance() 的 distance 回傳值在本分支不是主要輸出。
-- 主要對外交付資訊為 spectrum 與其診斷指標。
+- 主要對外交付資訊為 spectrum，本分支不再額外輸出自訂 peak/noise/SNR 診斷欄位。
 
 ### 4.1 客戶實測簡單流程（建議）
 
 1. 將 KIT_PSE84_AI 固定在桌面，雷達正面朝向測試區域。
-2. 開啟 UART terminal（115200-8-N-1），確認有連續 frame 輸出。
+2. 開啟 UART terminal serial port（115200-8-N-1），確認有連續 frame 輸出。
 3. Baseline：前方 0.5 m 內不放明顯反射物，觀察 50 到 100 筆輸出。
 4. 放入目標物：在約 20 到 30 cm 放置金屬板，觀察 50 到 100 筆輸出。
-5. 調整距離：將目標移到約 50 到 70 cm，確認 SearchPeakBin 與 Peak 有趨勢變化。
+5. 調整距離：將目標移到約 50 到 70 cm，確認 spectrum 主峰位置有可追蹤的位移趨勢。
 
 ### 4.2 輸入/輸出資料範例
 
-輸入資料（sensor FIFO raw sample 摘要）可觀察前幾個 sample 值是否持續更新：
-
-Example Input Snapshot:
-S0=1118 | S1=2875 | S2=1719 | S3=2398
+輸入資料來自 sensor FIFO 的 raw radar frame。這些原始 sample 會先經過官方流程做 de-bias、window 與 FFT，再輸出 integrated spectrum。
 
 輸出資料（Mode 3）範例如下：
 
 Example Output A:
-Frame=220 | WaitMs=31 | RawPeakBin=3 | SearchPeakBin=7 | Peak=1.482 | Range=11.41 cm | Noise=0.436 | SNRx=3.40 | B2=6.88 B6=1.36 B10=0.92 B14=0.64
+Frame=220 | WaitMs=31 | SpectrumBins=3-24 | Spectrum=0.812,1.044,1.482,1.126,0.901,0.744,0.618,0.551,0.498,0.463,0.429,0.401,0.372,0.341,0.329,0.318,0.305,0.291,0.276,0.263,0.251,0.241
 
 Example Output B:
-Frame=221 | WaitMs=30 | RawPeakBin=3 | SearchPeakBin=11 | Peak=1.903 | Range=17.93 cm | Noise=0.472 | SNRx=4.03 | B2=6.54 B6=1.12 B10=1.58 B14=0.79
+Frame=221 | WaitMs=30 | SpectrumBins=3-24 | Spectrum=0.774,0.992,1.215,1.903,1.312,0.889,0.701,0.612,0.558,0.503,0.471,0.436,0.398,0.377,0.351,0.333,0.320,0.304,0.289,0.272,0.260,0.248
 
 ## 5. 專案結構 Project Structure
 
@@ -116,34 +118,42 @@ git clone https://github.com/wind-apprentice/psoc_edge_radar_fft.git
 ## 7. 使用 ModusToolbox Eclipse IDE 建置與燒錄（GUI）
 
 1. 將 KIT_PSE84_AI 以 USB 連接至電腦（KitProg3 介面）。
-2. 在 Project Explorer 右鍵點選最上層 Application，選擇 Build Application。
-3. 等待 Console 顯示 build 完成且無 error。
-4. 於上方工具列選擇 Run -> Run Configurations。
-5. 選擇 .mtbLaunchConfigs 中的 Program Application（或 Debug MultiCore）。
-6. 按 Run 或 Debug 進行燒錄。
-7. 燒錄完成後，開啟 Terminal Tool（例如 Tera Term）連到 KitProg3 COM Port，設定 115200-8-N-1。
+2. 在 Project Explorer 右鍵點選最上層 application（psoc_edge_radar_fft），選擇 ModusToolbox -> Library Manager。
+3. 確認 proj_cm33_ns/deps 內存在 sensor-dsp，按 Apply 或 Update 讓 IDE 抓取官方 DSP library。
+4. Library Manager 完成後，右鍵 application 選擇 Clean Application。
+5. 再次右鍵 application，選擇 Build Application。
+6. 等待 Console 顯示 build 完成且無 error。
+7. 於上方工具列選擇 Run -> Run Configurations。
+8. 選擇 .mtbLaunchConfigs 中的 Program Application（或 Debug MultiCore）。
+9. 按 Run 或 Debug 進行燒錄。
+10. 燒錄完成後，開啟 Terminal Tool（例如 Tera Term）連到 KitProg3 COM Port，設定 115200-8-N-1。
 
-## 8. 執行模式 Runtime Mode
+### 7.1 若出現 ifx_sensor_dsp.h: No such file or directory
 
-請在 proj_cm33_ns/main.c 內設定 PHASE1_APP_MODE：
+1. 回到 Library Manager，確認 sensor-dsp 已成功安裝且版本已 lock。
+2. 確認 proj_cm33_ns/deps/sensor-dsp.mtb 存在。
+3. 執行 Clean Application 後重新 Build Application。
+4. 若仍失敗，關閉 IDE 後重開 workspace 再重試 Build。
 
-- 3U：real radar signal -> FFT/spectrum（本分支僅支援 3U）
+### 7.2 若出現 xensiv_bgt60trxx_mtb.h: No such file or directory
 
-## 9. UART 輸出判讀 UART Verification
+1. 確認本專案內存在 third_party/sensor-xensiv-bgt60trxx。
+2. 確認該目錄內含 xensiv_bgt60trxx_mtb.h、xensiv_bgt60trxx.c、xensiv_bgt60trxx_edge.c。
+3. 執行 Clean Application 後重新 Build Application。
 
-在 Mode 3 下，UART 每個 frame 會輸出類似欄位：
+
+## 8. UART 輸出判讀 UART Verification
+
+UART 每個 frame 會輸出類似欄位：
 
 - Frame
-- RawPeakBin
-- SearchPeakBin
-- Peak
-- Noise
-- SNRx
-- B2/B6/B10/B14
+- WaitMs
+- SpectrumBins
+- Spectrum
 
-建議先確認欄位穩定刷新，再進行目標物距離與角度場景測試。
+建議先確認 spectrum 行持續刷新，再進行目標物距離與角度場景測試。
 
-## 10. 授權與交付注意事項 License / Delivery Notes
+## 9. 授權與交付注意事項 License / Delivery Notes
 
 本專案包含來自 Infineon 公開範例與公開 library 的衍生整合內容。
 

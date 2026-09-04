@@ -43,6 +43,9 @@
 #include "cybsp.h"
 #include "cy_pdl.h"
 #include "retarget_io_init.h"
+/* Define before including radar_processing.h so the register list (pulled in via
+ * resource_map.h) emits the register_list[] definition instead of just declarations. */
+#define XENSIV_BGT60TRXX_CONF_IMPL
 #include "radar_processing.h"
 
 #if !defined(PHASE1_APP_MODE)
@@ -57,8 +60,6 @@
 
 #if (PHASE1_APP_MODE == PHASE1_APP_MODE_SENSOR_FFT)
 #include "xensiv_bgt60trxx_mtb.h"
-#define XENSIV_BGT60TRXX_CONF_IMPL
-#include "BGT60TR13C_RegisterList.h"
 #if (XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS != 1)
 #error "This integration assumes one RX antenna frame layout."
 #endif
@@ -83,9 +84,6 @@
 #define NUM_SAMPLES_PER_FRAME              (XENSIV_BGT60TRXX_CONF_NUM_RX_ANTENNAS * \
                                            XENSIV_BGT60TRXX_CONF_NUM_CHIRPS_PER_FRAME * \
                                            XENSIV_BGT60TRXX_CONF_NUM_SAMPLES_PER_CHIRP)
-
-/* Ignore very near bins to reduce TX-RX coupling dominance during bring-up. */
-#define SENSOR_FFT_SEARCH_MIN_BIN          (6U)
 
 static xensiv_bgt60trxx_mtb_t sensor;
 static cy_en_scb_spi_status_t init_status;
@@ -201,7 +199,7 @@ static cy_rslt_t run_sensor_fft_test(void)
     }
 
     printf("Sensor FFT mode started. Source=real radar IF signal\r\n");
-    printf("Spectrum source=integrated_chirp | FFT bins=%u | Valid search=[%u..%u]\r\n",
+    printf("Spectrum source=integrated_chirp | FFT bins=%u | Valid bins=[%u..%u]\r\n",
         (unsigned int)context.fft_size,
         (unsigned int)context.skip,
         (unsigned int)context.max_range_bin);
@@ -236,7 +234,7 @@ static cy_rslt_t run_sensor_fft_test(void)
 
         if (xensiv_bgt60trxx_get_fifo_data(&sensor.dev, sensor_samples, NUM_SAMPLES_PER_FRAME) == XENSIV_BGT60TRXX_STATUS_OK)
         {
-            /* Keep original sample flow: process frame but ignore distance return if not needed. */
+            /* Keep original sample flow and expose the computed spectrum buffer. */
             float32_t ignored_distance_m = get_static_distance(&context, sensor_samples);
 
             if (ignored_distance_m < 0.0f)
@@ -245,68 +243,29 @@ static cy_rslt_t run_sensor_fft_test(void)
             }
             else
             {
-                uint16_t search_min = SENSOR_FFT_SEARCH_MIN_BIN;
-                uint16_t search_max = context.max_range_bin;
-                uint16_t raw_peak_idx = context.skip;
-                uint16_t search_peak_idx = context.skip;
-                float raw_peak_val = -1.0f;
-                float search_peak_val = -1.0f;
-                float noise_sum = 0.0f;
-                uint32_t noise_count = 0U;
+                uint16_t max_bin = context.max_range_bin;
 
-                if (search_min < context.skip)
+                if (max_bin >= (uint16_t)context.fft_size)
                 {
-                    search_min = context.skip;
-                }
-                if (search_max >= (uint16_t)context.fft_size)
-                {
-                    search_max = (uint16_t)(context.fft_size - 1);
-                }
-                if (search_min > search_max)
-                {
-                    search_min = context.skip;
+                    max_bin = (uint16_t)(context.fft_size - 1);
                 }
 
-                for (uint16_t b = context.skip; b <= search_max; ++b)
-                {
-                    float v = context.integrated_chirp[b];
-                    if (v > raw_peak_val)
-                    {
-                        raw_peak_val = v;
-                        raw_peak_idx = b;
-                    }
-                }
-
-                for (uint16_t b = search_min; b <= search_max; ++b)
-                {
-                    float v = context.integrated_chirp[b];
-                    if (v > search_peak_val)
-                    {
-                        search_peak_val = v;
-                        search_peak_idx = b;
-                    }
-                    noise_sum += v;
-                    noise_count++;
-                }
-
-                 /* Diagnostic summary from one full spectrum snapshot. */
-                 float noise_floor = (noise_count > 0U) ? (noise_sum / (float)noise_count) : 0.0f;
-                float snr_like = (noise_floor > 0.0001f) ? (search_peak_val / noise_floor) : 0.0f;
-                 float peak_range_cm = search_peak_idx * context.bin_len * 100.0f;
-
-                 printf("Frame=%lu | WaitMs=%lu | RawPeakBin=%u | SearchPeakBin=%u | Peak=%.3f | Range=%.2f cm | Noise=%.3f | SNRx=%.2f | B2=%.2f B6=%.2f B10=%.2f B14=%.2f\r\n",
+                printf("Frame=%lu | WaitMs=%lu | SpectrumBins=%u-%u | Spectrum=",
                        (unsigned long)frame_counter,
                        (unsigned long)wait_ms,
-                       (unsigned int)raw_peak_idx,
-                       (unsigned int)search_peak_idx,
-                       (double)search_peak_val,
-                       (double)peak_range_cm,
-                       (double)noise_floor,
-                       (double)snr_like,
-                       (double)context.integrated_chirp[2],
-                       (double)context.integrated_chirp[6],
-                       (double)context.integrated_chirp[10],
-                       (double)context.integrated_chirp[14]);
+                       (unsigned int)context.skip,
+                       (unsigned int)max_bin);
+
+                for (uint16_t bin = context.skip; bin <= max_bin; ++bin)
+                {
+                    printf("%.3f", (double)context.integrated_chirp[bin]);
+                    if (bin < max_bin)
+                    {
+                        printf(",");
+                    }
+                }
+
+                printf("\r\n");
             }
         }
         else

@@ -41,7 +41,7 @@
 #include "cybsp.h"
 
 /*Define the radar device being used as 'BGT60UTR11AIP' or 'BGT60TR13C' */
-#define BGT60UTR11AIP
+#define BGT60TR13C
 
 #ifdef BGT60TR13C
 #include <BGT60TR13C_RegisterList.h>

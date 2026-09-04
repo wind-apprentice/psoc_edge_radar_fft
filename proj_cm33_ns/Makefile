@@ -66,10 +66,13 @@ CORE_NAME=CM33_0
 # manually add source code to the build process from a location not searched
 # by default, or otherwise not found by the build system.
 SOURCES+=
+SOURCES+=../third_party/sensor-xensiv-bgt60trxx/xensiv_bgt60trxx.c
+SOURCES+=../third_party/sensor-xensiv-bgt60trxx/xensiv_bgt60trxx_edge.c
 
 # Like SOURCES, but for include directories. Value should be paths to
 # directories (without a leading -I).
 INCLUDES+=
+INCLUDES+=../third_party/sensor-xensiv-bgt60trxx
 
 # Add additional defines to the build process (without a leading -D).
 DEFINES+=CY_RETARGET_IO_CONVERT_LF_TO_CRLF COMPONENT_MTB_HAL

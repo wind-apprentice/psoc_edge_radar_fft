@@ -38,8 +38,6 @@
 #include <stdlib.h> // Provides functions for memory allocation and other utilities
 #include <stdio.h>  // Provides input/output functions like printf and scanf
 #include "radar_processing.h"
-#include "cyhal.h"
-#include "cybsp.h"
 
 /*******************************************************************************
 * Global Variables

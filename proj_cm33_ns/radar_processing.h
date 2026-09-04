@@ -39,8 +39,8 @@
 #define RADAR_PROCESSING_H
 #include <stdint.h> // Provides fixed-width integer types like int8_t, uint32_t, etc.
 #include "ifx_sensor_dsp.h"
-#include "cyhal.h"
-#include "cybsp.h"
+#include "cy_result.h"
+#include "cy_pdl.h"
 #include <resource_map.h>
 
 /*******************************************************************************
