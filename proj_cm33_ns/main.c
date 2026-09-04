@@ -49,17 +49,13 @@
 #define PHASE1_APP_MODE (3U)
 #endif
 
-/*
- * Mode switch:
- * 1 = synthetic frame -> FFT/spectrum (no radar hardware dependency)
- * 2 = onboard radar smoke test (SPI/IRQ/FIFO sanity only)
- * 3 = onboard radar real signal -> FFT/spectrum
- */
-#define PHASE1_APP_MODE_MOCK          (1U)
-#define PHASE1_APP_MODE_SENSOR_SMOKE  (2U)
 #define PHASE1_APP_MODE_SENSOR_FFT    (3U)
 
-#if (PHASE1_APP_MODE >= PHASE1_APP_MODE_SENSOR_SMOKE)
+#if (PHASE1_APP_MODE != PHASE1_APP_MODE_SENSOR_FFT)
+#error "Only PHASE1_APP_MODE=3U is supported in this branch."
+#endif
+
+#if (PHASE1_APP_MODE == PHASE1_APP_MODE_SENSOR_FFT)
 #include "xensiv_bgt60trxx_mtb.h"
 #define XENSIV_BGT60TRXX_CONF_IMPL
 #include "BGT60TR13C_RegisterList.h"
@@ -80,7 +76,7 @@
 #define CM55_APP_BOOT_ADDR          (CYMEM_CM33_0_m55_nvm_START + \
                                         CYBSP_MCUBOOT_HEADER_SIZE)
 
-#if (PHASE1_APP_MODE >= PHASE1_APP_MODE_SENSOR_SMOKE)
+#if (PHASE1_APP_MODE == PHASE1_APP_MODE_SENSOR_FFT)
 #define XENSIV_BGT60TRXX_IRQ_PRIORITY      (3U)
 #define SPI_INTR_NUM                       ((IRQn_Type) CYBSP_SPI_CONTROLLER_IRQ)
 #define SPI_INTR_PRIORITY                  (2U)
@@ -178,77 +174,6 @@ static cy_rslt_t init_onboard_radar_sensor(void)
 
     Cy_SysLib_Delay(1000U);
     return CY_RSLT_SUCCESS;
-}
-
-static cy_rslt_t run_sensor_smoke_test(void)
-{
-    cy_rslt_t result = CY_RSLT_SUCCESS;
-    uint32_t frame_counter = 0U;
-    static uint16_t samples[NUM_SAMPLES_PER_FRAME] = {0};
-
-    result = init_onboard_radar_sensor();
-    if (result != CY_RSLT_SUCCESS)
-    {
-        return result;
-    }
-
-    /* Test pattern mode validates digital transport path independent of scene. */
-    if (xensiv_bgt60trxx_enable_data_test_mode(&sensor.dev, true) != XENSIV_BGT60TRXX_STATUS_OK)
-    {
-        return CY_RSLT_TYPE_ERROR;
-    }
-
-    if (xensiv_bgt60trxx_start_frame(&sensor.dev, true) != XENSIV_BGT60TRXX_STATUS_OK)
-    {
-        return CY_RSLT_TYPE_ERROR;
-    }
-
-    printf("Sensor smoke test started. Waiting for FIFO IRQ...\r\n");
-
-    for (;;)
-    {
-        while (data_available == false)
-        {
-        }
-        data_available = false;
-
-        if (xensiv_bgt60trxx_get_fifo_data(&sensor.dev, samples, NUM_SAMPLES_PER_FRAME) == XENSIV_BGT60TRXX_STATUS_OK)
-        {
-            uint16_t min_sample = 0x0FFFU;
-            uint16_t max_sample = 0U;
-            uint32_t sum = 0U;
-
-            for (uint32_t i = 0U; i < NUM_SAMPLES_PER_FRAME; ++i)
-            {
-                uint16_t sample = samples[i];
-                if (sample < min_sample)
-                {
-                    min_sample = sample;
-                }
-                if (sample > max_sample)
-                {
-                    max_sample = sample;
-                }
-                sum += sample;
-            }
-
-            printf("Frame=%lu | Min=%u | Max=%u | Avg=%lu | S0=%u | S1=%u | S2=%u | S3=%u\r\n",
-                   (unsigned long)frame_counter,
-                   (unsigned int)min_sample,
-                   (unsigned int)max_sample,
-                   (unsigned long)(sum / NUM_SAMPLES_PER_FRAME),
-                   (unsigned int)samples[0],
-                   (unsigned int)samples[1],
-                   (unsigned int)samples[2],
-                   (unsigned int)samples[3]);
-        }
-        else
-        {
-            printf("FIFO read failed on frame %lu\r\n", (unsigned long)frame_counter);
-        }
-
-        ++frame_counter;
-    }
 }
 
 static cy_rslt_t run_sensor_fft_test(void)
@@ -449,15 +374,7 @@ int main(void)
     Cy_SysEnableCM55(MXCM55, CM55_APP_BOOT_ADDR, CM55_BOOT_WAIT_TIME_USEC);
 #endif
 
-#if (PHASE1_APP_MODE == PHASE1_APP_MODE_SENSOR_SMOKE)
-    printf("Mode=sensor_smoke | Source=onboard BGT60TR13C\r\n\r\n");
-    result = run_sensor_smoke_test();
-    if (result != CY_RSLT_SUCCESS)
-    {
-        printf("Sensor smoke test init failed: 0x%08lx\r\n", (unsigned long)result);
-        handle_app_error();
-    }
-#elif (PHASE1_APP_MODE == PHASE1_APP_MODE_SENSOR_FFT)
+#if (PHASE1_APP_MODE == PHASE1_APP_MODE_SENSOR_FFT)
     printf("Mode=sensor_fft | Source=onboard BGT60TR13C\r\n\r\n");
     result = run_sensor_fft_test();
     if (result != CY_RSLT_SUCCESS)
@@ -466,7 +383,7 @@ int main(void)
         handle_app_error();
     }
 #else
-    printf("Mode not supported in this branch. Set PHASE1_APP_MODE to 2U or 3U.\r\n");
+    printf("Mode not supported in this branch. Set PHASE1_APP_MODE to 3U.\r\n");
     handle_app_error();
 #endif
 

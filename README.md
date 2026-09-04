@@ -49,6 +49,29 @@
 - get_static_distance() 的 distance 回傳值在本分支不是主要輸出。
 - 主要對外交付資訊為 spectrum 與其診斷指標。
 
+### 4.1 客戶實測簡單流程（建議）
+
+1. 將 KIT_PSE84_AI 固定在桌面，雷達正面朝向測試區域。
+2. 開啟 UART terminal（115200-8-N-1），確認有連續 frame 輸出。
+3. Baseline：前方 0.5 m 內不放明顯反射物，觀察 50 到 100 筆輸出。
+4. 放入目標物：在約 20 到 30 cm 放置金屬板，觀察 50 到 100 筆輸出。
+5. 調整距離：將目標移到約 50 到 70 cm，確認 SearchPeakBin 與 Peak 有趨勢變化。
+
+### 4.2 輸入/輸出資料範例
+
+輸入資料（sensor FIFO raw sample 摘要）可觀察前幾個 sample 值是否持續更新：
+
+Example Input Snapshot:
+S0=1118 | S1=2875 | S2=1719 | S3=2398
+
+輸出資料（Mode 3）範例如下：
+
+Example Output A:
+Frame=220 | WaitMs=31 | RawPeakBin=3 | SearchPeakBin=7 | Peak=1.482 | Range=11.41 cm | Noise=0.436 | SNRx=3.40 | B2=6.88 B6=1.36 B10=0.92 B14=0.64
+
+Example Output B:
+Frame=221 | WaitMs=30 | RawPeakBin=3 | SearchPeakBin=11 | Peak=1.903 | Range=17.93 cm | Noise=0.472 | SNRx=4.03 | B2=6.54 B6=1.12 B10=1.58 B14=0.79
+
 ## 5. 專案結構 Project Structure
 
 - proj_cm33_ns：non-secure application，負責 radar acquisition、processing、UART output
@@ -104,8 +127,7 @@ git clone https://github.com/wind-apprentice/psoc_edge_radar_fft.git
 
 請在 proj_cm33_ns/main.c 內設定 PHASE1_APP_MODE：
 
-- 2U：sensor transport smoke test
-- 3U：real radar signal -> FFT/spectrum（預設）
+- 3U：real radar signal -> FFT/spectrum（本分支僅支援 3U）
 
 ## 9. UART 輸出判讀 UART Verification
 
